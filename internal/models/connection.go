@@ -27,6 +27,7 @@ type Connection struct {
 	JumpHostID    *string    `json:"jump_host_id"`
 	UploadPath    string     `json:"upload_path"`
 	DefaultCmd    *string    `json:"default_cmd"`
+	Remark        *string    `json:"remark"`
 	SortOrder     int        `json:"sort_order"`
 	Color         *string    `json:"color"`
 	LastUsedAt    *time.Time `json:"last_used_at"`
@@ -51,6 +52,7 @@ type ConnectionForm struct {
 	JumpHostID    *string  `json:"jump_host_id"`
 	UploadPath    string   `json:"upload_path"`
 	DefaultCmd    *string  `json:"default_cmd"`
+	Remark        *string  `json:"remark"`
 	SortOrder     int      `json:"sort_order"`
 	Color         *string  `json:"color"`
 }

@@ -188,7 +188,7 @@ func (a *AppService) ServiceShutdown() error {
 // --- Connection CRUD ---
 
 func (a *AppService) ListConnections() ([]models.Connection, error) {
-	rows, err := a.db.Query("SELECT id, group_id, name, host, port, username, auth_type, proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, sort_order, color, last_used_at, created_at, updated_at FROM connections ORDER BY sort_order, name")
+	rows, err := a.db.Query("SELECT id, group_id, name, host, port, username, auth_type, proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, remark, sort_order, color, last_used_at, created_at, updated_at FROM connections ORDER BY sort_order, name")
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (a *AppService) ListConnections() ([]models.Connection, error) {
 	conns := make([]models.Connection, 0)
 	for rows.Next() {
 		var c models.Connection
-		if err := rows.Scan(&c.ID, &c.GroupID, &c.Name, &c.Host, &c.Port, &c.Username, &c.AuthType, &c.ProxyType, &c.ProxyAddr, &c.JumpHostID, &c.UploadPath, &c.DefaultCmd, &c.SortOrder, &c.Color, &c.LastUsedAt, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.GroupID, &c.Name, &c.Host, &c.Port, &c.Username, &c.AuthType, &c.ProxyType, &c.ProxyAddr, &c.JumpHostID, &c.UploadPath, &c.DefaultCmd, &c.Remark, &c.SortOrder, &c.Color, &c.LastUsedAt, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		conns = append(conns, c)
@@ -225,12 +225,12 @@ func (a *AppService) CreateConnection(form models.ConnectionForm) error {
 	}
 
 	_, err = a.db.Exec(
-		`INSERT INTO connections (id, group_id, name, host, port, username, auth_type, password, private_key, key_passphrase, proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, sort_order, color)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO connections (id, group_id, name, host, port, username, auth_type, password, private_key, key_passphrase, proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, remark, sort_order, color)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		form.ID, form.GroupID, form.Name, form.Host, form.Port, form.Username, form.AuthType,
 		encryptedPW, encryptedKey, encryptedPassphrase,
 		form.ProxyType, form.ProxyAddr, form.JumpHostID,
-		form.UploadPath, form.DefaultCmd, form.SortOrder, form.Color,
+		form.UploadPath, form.DefaultCmd, form.Remark, form.SortOrder, form.Color,
 	)
 	return err
 }
@@ -278,12 +278,12 @@ func (a *AppService) UpdateConnection(form models.ConnectionForm) error {
 	}
 
 	_, err := a.db.Exec(
-		`UPDATE connections SET group_id=?, name=?, host=?, port=?, username=?, auth_type=?, password=?, private_key=?, key_passphrase=?, proxy_type=?, proxy_addr=?, jump_host_id=?, upload_path=?, default_cmd=?, sort_order=?, color=?, updated_at=CURRENT_TIMESTAMP
+		`UPDATE connections SET group_id=?, name=?, host=?, port=?, username=?, auth_type=?, password=?, private_key=?, key_passphrase=?, proxy_type=?, proxy_addr=?, jump_host_id=?, upload_path=?, default_cmd=?, remark=?, sort_order=?, color=?, updated_at=CURRENT_TIMESTAMP
 		 WHERE id=?`,
 		form.GroupID, form.Name, form.Host, form.Port, form.Username, form.AuthType,
 		encryptedPW, encryptedKey, encryptedPassphrase,
 		form.ProxyType, form.ProxyAddr, form.JumpHostID,
-		form.UploadPath, form.DefaultCmd, form.SortOrder, form.Color,
+		form.UploadPath, form.DefaultCmd, form.Remark, form.SortOrder, form.Color,
 		form.ID,
 	)
 	return err
@@ -309,12 +309,12 @@ func (a *AppService) CopyConnection(id string, name string) (*models.Connection,
 	}
 
 	_, err = a.db.Exec(
-		`INSERT INTO connections (id, group_id, name, host, port, username, auth_type, password, private_key, key_passphrase, proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, sort_order, color)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO connections (id, group_id, name, host, port, username, auth_type, password, private_key, key_passphrase, proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, remark, sort_order, color)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		newID, conn.GroupID, name, conn.Host, conn.Port, conn.Username, conn.AuthType,
 		conn.Password, conn.PrivateKey, conn.KeyPassphrase,
 		conn.ProxyType, conn.ProxyAddr, conn.JumpHostID,
-		conn.UploadPath, conn.DefaultCmd, conn.SortOrder, conn.Color,
+		conn.UploadPath, conn.DefaultCmd, conn.Remark, conn.SortOrder, conn.Color,
 	)
 	if err != nil {
 		return nil, err
@@ -403,9 +403,9 @@ func (a *AppService) StopMonitor(connectionID string) {
 func (a *AppService) getConnectionByID(id string) (*models.Connection, error) {
 	var c models.Connection
 	err := a.db.QueryRow(
-		"SELECT id, group_id, name, host, port, username, auth_type, password, private_key, key_passphrase, proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, sort_order, color, last_used_at FROM connections WHERE id = ?",
+		"SELECT id, group_id, name, host, port, username, auth_type, password, private_key, key_passphrase, proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, remark, sort_order, color, last_used_at FROM connections WHERE id = ?",
 		id,
-	).Scan(&c.ID, &c.GroupID, &c.Name, &c.Host, &c.Port, &c.Username, &c.AuthType, &c.Password, &c.PrivateKey, &c.KeyPassphrase, &c.ProxyType, &c.ProxyAddr, &c.JumpHostID, &c.UploadPath, &c.DefaultCmd, &c.SortOrder, &c.Color, &c.LastUsedAt)
+	).Scan(&c.ID, &c.GroupID, &c.Name, &c.Host, &c.Port, &c.Username, &c.AuthType, &c.Password, &c.PrivateKey, &c.KeyPassphrase, &c.ProxyType, &c.ProxyAddr, &c.JumpHostID, &c.UploadPath, &c.DefaultCmd, &c.Remark, &c.SortOrder, &c.Color, &c.LastUsedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -415,6 +415,14 @@ func (a *AppService) getConnectionByID(id string) (*models.Connection, error) {
 func (a *AppService) GetPassword(id string) (string, error) {
 	var encrypted string
 	if err := a.db.QueryRow("SELECT password FROM connections WHERE id = ?", id).Scan(&encrypted); err != nil {
+		return "", err
+	}
+	return a.db.Crypto().Decrypt(encrypted)
+}
+
+func (a *AppService) GetPrivateKey(id string) (string, error) {
+	var encrypted string
+	if err := a.db.QueryRow("SELECT private_key FROM connections WHERE id = ?", id).Scan(&encrypted); err != nil {
 		return "", err
 	}
 	return a.db.Crypto().Decrypt(encrypted)

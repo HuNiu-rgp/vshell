@@ -30,6 +30,7 @@ export interface ConnectionFormData {
   host: string
   port: number
   username: string
+  remark: string
   authType: string
   password: string
   privateKey: string
@@ -45,6 +46,7 @@ export function newFormData(): ConnectionFormData {
     host: '',
     port: 22,
     username: 'root',
+    remark: '',
     authType: AuthType.AuthPassword,
     password: '',
     privateKey: '',
@@ -73,6 +75,7 @@ export const useConnectionStore = defineStore('connection', () => {
         host: c.host || '',
         port: c.port || 22,
         username: c.username || '',
+        remark: c.remark || '',
         auth_type: c.auth_type || '',
         proxy_type: c.proxy_type || null,
         proxy_addr: c.proxy_addr || null,
@@ -151,6 +154,7 @@ export const useConnectionStore = defineStore('connection', () => {
       host: data.host,
       port: data.port,
       username: data.username,
+      remark: data.remark || null,
       auth_type: data.authType as AuthType,
       password: data.password,
       private_key: data.privateKey,
@@ -189,6 +193,7 @@ export const useConnectionStore = defineStore('connection', () => {
       host: data.host,
       port: data.port,
       username: data.username,
+      remark: data.remark || null,
       auth_type: data.authType as AuthType,
       password: data.password,
       private_key: data.privateKey,

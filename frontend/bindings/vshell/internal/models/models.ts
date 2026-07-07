@@ -34,6 +34,7 @@ export class Connection {
     "jump_host_id": string | null;
     "upload_path": string;
     "default_cmd": string | null;
+    "remark": string | null;
     "sort_order": number;
     "color": string | null;
     "last_used_at": time$0.Time | null;
@@ -77,6 +78,9 @@ export class Connection {
         }
         if (!("default_cmd" in $$source)) {
             this["default_cmd"] = null;
+        }
+        if (!("remark" in $$source)) {
+            this["remark"] = null;
         }
         if (!("sort_order" in $$source)) {
             this["sort_order"] = 0;
@@ -125,6 +129,7 @@ export class ConnectionForm {
     "jump_host_id": string | null;
     "upload_path": string;
     "default_cmd": string | null;
+    "remark": string | null;
     "sort_order": number;
     "color": string | null;
 
@@ -165,6 +170,9 @@ export class ConnectionForm {
         }
         if (!("default_cmd" in $$source)) {
             this["default_cmd"] = null;
+        }
+        if (!("remark" in $$source)) {
+            this["remark"] = null;
         }
         if (!("sort_order" in $$source)) {
             this["sort_order"] = 0;

@@ -69,6 +69,7 @@ type connectionExportConnection struct {
 	JumpHostID    *string         `json:"jump_host_id"`
 	UploadPath    string          `json:"upload_path"`
 	DefaultCmd    *string         `json:"default_cmd"`
+	Remark        *string         `json:"remark"`
 	SortOrder     int             `json:"sort_order"`
 	Color         *string         `json:"color"`
 }
@@ -208,8 +209,8 @@ func (a *AppService) ImportConnectionConfigs(filePath string, password string) (
 		}
 
 		if _, err := tx.Exec(
-			`INSERT INTO connections (id, group_id, name, host, port, username, auth_type, password, private_key, key_passphrase, proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, sort_order, color)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO connections (id, group_id, name, host, port, username, auth_type, password, private_key, key_passphrase, proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, remark, sort_order, color)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(id) DO UPDATE SET
 			   group_id=excluded.group_id,
 			   name=excluded.name,
@@ -225,12 +226,13 @@ func (a *AppService) ImportConnectionConfigs(filePath string, password string) (
 			   jump_host_id=excluded.jump_host_id,
 			   upload_path=excluded.upload_path,
 			   default_cmd=excluded.default_cmd,
+			   remark=excluded.remark,
 			   sort_order=excluded.sort_order,
 			   color=excluded.color,
 			   updated_at=CURRENT_TIMESTAMP`,
 			conn.ID, groupID, conn.Name, conn.Host, conn.Port, conn.Username, conn.AuthType,
 			password, privateKey, keyPassphrase, conn.ProxyType, conn.ProxyAddr, conn.JumpHostID,
-			conn.UploadPath, conn.DefaultCmd, conn.SortOrder, conn.Color,
+			conn.UploadPath, conn.DefaultCmd, conn.Remark, conn.SortOrder, conn.Color,
 		); err != nil {
 			return result, fmt.Errorf("import connection %s: %w", conn.Name, err)
 		}
@@ -264,7 +266,7 @@ func (a *AppService) exportGroups() ([]connectionExportGroup, error) {
 func (a *AppService) exportConnections() ([]connectionExportConnection, error) {
 	rows, err := a.db.Query(`
 		SELECT id, group_id, name, host, port, username, auth_type, password, private_key, key_passphrase,
-		       proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, sort_order, color
+		       proxy_type, proxy_addr, jump_host_id, upload_path, default_cmd, remark, sort_order, color
 		FROM connections
 		ORDER BY sort_order, name
 	`)
@@ -279,7 +281,7 @@ func (a *AppService) exportConnections() ([]connectionExportConnection, error) {
 		if err := rows.Scan(
 			&conn.ID, &conn.GroupID, &conn.Name, &conn.Host, &conn.Port, &conn.Username, &conn.AuthType,
 			&conn.Password, &conn.PrivateKey, &conn.KeyPassphrase, &conn.ProxyType, &conn.ProxyAddr,
-			&conn.JumpHostID, &conn.UploadPath, &conn.DefaultCmd, &conn.SortOrder, &conn.Color,
+			&conn.JumpHostID, &conn.UploadPath, &conn.DefaultCmd, &conn.Remark, &conn.SortOrder, &conn.Color,
 		); err != nil {
 			return nil, err
 		}

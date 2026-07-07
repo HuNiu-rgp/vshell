@@ -26,6 +26,7 @@ func (db *DB) migrate() error {
 			jump_host_id TEXT,
 			upload_path TEXT DEFAULT '/',
 			default_cmd TEXT,
+			remark TEXT,
 			sort_order INTEGER DEFAULT 0,
 			color TEXT,
 			last_used_at DATETIME,
@@ -74,6 +75,7 @@ func (db *DB) migrate() error {
 	// Additive migrations that may fail on fresh DBs (column/table already exists).
 	additive := []string{
 		`ALTER TABLE port_forwards ADD COLUMN name TEXT`,
+		`ALTER TABLE connections ADD COLUMN remark TEXT`,
 	}
 	for _, m := range additive {
 		db.Exec(m) // ignore errors

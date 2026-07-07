@@ -10,7 +10,6 @@ import {
   NSelect,
   NButton,
   NSpace,
-  NDivider,
   NRadioGroup,
   NRadio,
   NCheckbox,
@@ -19,7 +18,7 @@ import {
 import { useConnectionStore, newFormData, AuthType } from '../../stores/connection'
 import { useSSHKeyStore } from '../../stores/sshkey'
 import { useProxyStore, newProxyFormData, type ProxyFormData } from '../../stores/proxy'
-import { GetPassword } from '../../../bindings/vshell/internal/app/appservice'
+import { GetPassword, GetPrivateKey } from '../../../bindings/vshell/internal/app/appservice'
 import IconKey from '~icons/lucide/key'
 import IconPlus from '~icons/lucide/plus'
 import type { ConnectionFormData } from '../../stores/connection'
@@ -95,10 +94,44 @@ const proxyTypeOptions = computed(() => [
   { label: 'SOCKS5', value: 'socks5' },
 ])
 
+function normalizeKeyContent(content: string) {
+  return content.trim().replace(/\r\n/g, '\n')
+}
+
+async function restoreManagedKeySelection(connectionID: string) {
+  keySource.value = 'manual'
+  selectedKeyName.value = null
+  form.value.privateKey = ''
+
+  let savedPrivateKey = ''
+  try {
+    savedPrivateKey = normalizeKeyContent(await GetPrivateKey(connectionID))
+  } catch (e) {
+    console.warn('Failed to read saved private key:', e)
+    return
+  }
+  if (!savedPrivateKey) return
+
+  for (const key of sshKeyStore.keys) {
+    try {
+      const managedPrivateKey = normalizeKeyContent(await sshKeyStore.readContent(key.name, 'priv'))
+      if (managedPrivateKey === savedPrivateKey) {
+        keySource.value = 'managed'
+        selectedKeyName.value = key.name
+        form.value.privateKey = managedPrivateKey
+        return
+      }
+    } catch (e) {
+      console.warn(`Failed to read managed SSH key "${key.name}":`, e)
+    }
+  }
+}
+
 watch(
   () => props.show,
   async (visible) => {
     if (visible) {
+      await Promise.all([sshKeyStore.loadKeys(), proxyStore.loadProxies()])
       if (props.editConnection) {
         const c = props.editConnection
         form.value = {
@@ -107,6 +140,7 @@ watch(
           host: c.host,
           port: c.port,
           username: c.username,
+          remark: c.remark || '',
           authType: c.auth_type || AuthType.AuthPassword,
           password: '',
           privateKey: '',
@@ -117,6 +151,9 @@ watch(
         useProxy.value = !!c.proxy_addr
         keySource.value = 'manual'
         selectedKeyName.value = null
+        if (form.value.authType === AuthType.AuthPrivateKey) {
+          await restoreManagedKeySelection(c.id)
+        }
       } else {
         form.value = newFormData()
         if (props.defaultGroupID) {
@@ -126,7 +163,6 @@ watch(
         keySource.value = 'managed'
         selectedKeyName.value = null
       }
-      await Promise.all([sshKeyStore.loadKeys(), proxyStore.loadProxies()])
     }
   },
 )
@@ -208,7 +244,10 @@ async function handleSave() {
   const f = form.value
   if (!f.name.trim()) { message.warning(t('connection.nameRequired')); return }
   if (!f.host.trim()) { message.warning(t('connection.hostRequired')); return }
-  if (f.authType === 'private_key' && !f.privateKey.trim()) {
+  const isKeepingExistingPrivateKey = isEdit.value
+    && props.editConnection?.auth_type === AuthType.AuthPrivateKey
+    && !f.privateKey.trim()
+  if (f.authType === AuthType.AuthPrivateKey && !f.privateKey.trim() && !isKeepingExistingPrivateKey) {
     message.warning(t('connection.keyRequired'))
     return
   }
@@ -253,7 +292,9 @@ async function handleSave() {
       <NFormItem :label="t('common.username')">
         <NInput v-model:value="form.username" :placeholder="t('connection.usernamePlaceholder')" />
       </NFormItem>
-      <NDivider style="margin: 8px 0" />
+      <NFormItem :label="t('connection.remark')">
+        <NInput v-model:value="form.remark" :placeholder="t('connection.remarkPlaceholder')" />
+      </NFormItem>
       <NFormItem :label="t('connection.authType')">
         <NSelect v-model:value="form.authType" :options="authTypeOptions" />
       </NFormItem>
@@ -308,7 +349,6 @@ async function handleSave() {
           <NInput v-model:value="form.keyPassphrase" type="password" show-password-on="click" :placeholder="isEdit ? t('connection.passphraseEditPlaceholder') : t('connection.passphrasePlaceholder')" />
         </NFormItem>
       </template>
-      <NDivider style="margin: 8px 0" />
       <NFormItem :label="t('proxy.useProxy')">
         <div style="display: flex; align-items: center; gap: 8px; width: 100%">
           <NCheckbox v-model:checked="useProxy" />

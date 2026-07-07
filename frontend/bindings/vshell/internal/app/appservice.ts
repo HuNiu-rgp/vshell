@@ -121,6 +121,10 @@ export function GetPassword(id: string): $CancellablePromise<string> {
     return $Call.ByID(2249946754, id);
 }
 
+export function GetPrivateKey(id: string): $CancellablePromise<string> {
+    return $Call.ByID(3393968389, id);
+}
+
 /**
  * GetSSHConfigImportCandidates parses ~/.ssh/config and returns Host blocks as importable connection candidates.
  */

@@ -19,6 +19,7 @@ export interface Connection {
   proxy_addr: string | null
   upload_path: string
   default_cmd: string | null
+  remark: string | null
   sort_order: number
   color: string | null
   last_used_at: string | null
@@ -40,6 +41,7 @@ export interface ConnectionForm {
   jump_host_id?: string
   upload_path: string
   default_cmd?: string
+  remark?: string
   sort_order: number
   color?: string
 }
