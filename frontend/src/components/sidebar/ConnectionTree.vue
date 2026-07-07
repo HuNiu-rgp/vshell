@@ -23,6 +23,8 @@ import { countryForIPv4, flagForCountry } from '../../utils/ipCountry'
 import ConnectionFormModal from './ConnectionFormModal.vue'
 import type { Connection } from '../../types'
 
+const countryCacheStorageKey = 'vshell:host-countries'
+
 const { t } = useI18n()
 const emit = defineEmits<{ (e: 'collapseSidebar'): void }>()
 const connectionStore = useConnectionStore()
@@ -49,7 +51,7 @@ const exportPasswordConfirm = ref('')
 const showImportPasswordModal = ref(false)
 const importPath = ref('')
 const importPassword = ref('')
-const countryByHost = ref<Record<string, string | null>>({})
+const countryByHost = ref<Record<string, string | null>>(loadCountryCache())
 const searchQuery = ref('')
 const contextMenuVisible = ref(false)
 const contextMenuX = ref(0)
@@ -273,7 +275,7 @@ function renderLabel({ option }: { option: TreeOption }) {
     h('span', { class: 'conn-flag-wrap' }, [
       h('img', {
         class: 'conn-flag',
-        src: flagForCountry(countryByHost.value[conn.host] ?? countryForIPv4(conn.host)),
+        src: flagForCountry(countryForHost(conn.host)),
         alt: '',
         onError: (e: Event) => {
           (e.target as HTMLImageElement).src = '/flags/un.png'
@@ -298,7 +300,28 @@ async function resolveConnectionCountries() {
     } catch {
       countryByHost.value[host] = fallback
     }
+    saveCountryCache()
   }))
+}
+
+function countryForHost(host: string) {
+  return countryByHost.value[host] ?? countryForIPv4(host)
+}
+
+function loadCountryCache(): Record<string, string | null> {
+  try {
+    const raw = localStorage.getItem(countryCacheStorageKey)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return {}
+    return parsed as Record<string, string | null>
+  } catch {
+    return {}
+  }
+}
+
+function saveCountryCache() {
+  localStorage.setItem(countryCacheStorageKey, JSON.stringify(countryByHost.value))
 }
 
 function nodeProps({ option }: { option: TreeOption }) {
@@ -797,7 +820,7 @@ async function handleDrop({ node, dragNode, dropPosition }: TreeDropInfo) {
           <span class="conn-flag-wrap">
             <img
               class="conn-flag"
-              :src="flagForCountry(countryByHost[conn.host] ?? countryForIPv4(conn.host))"
+              :src="flagForCountry(countryForHost(conn.host))"
               alt=""
               @error="(e: Event) => { (e.target as HTMLImageElement).src = '/flags/un.png' }"
             />

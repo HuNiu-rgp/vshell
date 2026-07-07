@@ -17,7 +17,7 @@
         PackageDisplayName="vShell"
         PublisherName="CN=vShell"
         PublisherDisplayName="vShell"
-        Version="1.2.4.0"
+        Version="1.2.5.0"
         PackageDescription="SSH Client Management Tool">
         <Capabilities>
             <Capability Name="runFullTrust" />

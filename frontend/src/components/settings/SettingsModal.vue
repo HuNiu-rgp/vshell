@@ -6,6 +6,7 @@ import {
   NButton, NSelect, NInput, useMessage,
 } from 'naive-ui'
 import { Dialogs } from '@wailsio/runtime'
+import packageJSON from '../../../package.json'
 import { useSettingsStore } from '../../stores/settings'
 import { terminalThemes } from '../../constants/terminalThemes'
 import { comboFromKeyboardEvent, formatShortcutCombo } from '../../composables/useShortcuts'
@@ -32,7 +33,7 @@ let geoIPSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 const clientSettingsExportType = 'vshell-client-settings'
 const clientSettingsExportVersion = 1
-const appVersion = 'v1.2.2'
+const appVersion = `v${packageJSON.version}`
 
 interface ClientSettingsExportFile {
   type: typeof clientSettingsExportType

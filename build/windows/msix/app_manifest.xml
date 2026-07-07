@@ -10,7 +10,7 @@
   <Identity 
     Name="dev.vshell.app"
     Publisher="CN=vShell"
-    Version="1.2.4.0" 
+    Version="1.2.5.0" 
     ProcessorArchitecture="arm64" />
   
   <Properties>

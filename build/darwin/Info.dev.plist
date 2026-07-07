@@ -8,8 +8,6 @@
 		<string>Some Product Comments</string>
 		<key>CFBundleIconFile</key>
 		<string>icons</string>
-		<key>CFBundleIconName</key>
-		<string>appicon</string>
 		<key>CFBundleIdentifier</key>
 		<string>dev.vshell.app</string>
 		<key>CFBundleName</key>
@@ -17,9 +15,9 @@
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
-		<string>1.2.4</string>
+		<string>1.2.5</string>
 		<key>CFBundleVersion</key>
-		<string>1.2.4</string>
+		<string>1.2.5</string>
 		<key>LSMinimumSystemVersion</key>
 		<string>10.15.0</string>
 		<key>NSAppTransportSecurity</key>

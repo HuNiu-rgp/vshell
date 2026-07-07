@@ -82,6 +82,16 @@ export const useTerminalStore = defineStore('terminal', () => {
     }
   }
 
+  function moveTab(id: string, targetID: string, position: 'before' | 'after' = 'before') {
+    if (id === targetID) return
+    const from = tabs.value.findIndex((t) => t.id === id)
+    if (from < 0 || tabs.value.findIndex((t) => t.id === targetID) < 0) return
+    const [tab] = tabs.value.splice(from, 1)
+    const targetIndex = tabs.value.findIndex((t) => t.id === targetID)
+    if (targetIndex < 0) return
+    tabs.value.splice(position === 'after' ? targetIndex + 1 : targetIndex, 0, tab)
+  }
+
   function removeTab(id: string) {
     const idx = tabs.value.findIndex((t) => t.id === id)
     if (idx >= 0) {
@@ -125,6 +135,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     openLocalTerminal,
     updateTabContent,
     markTabDirty,
+    moveTab,
     removeTab,
     markTabDisconnected,
     closeOtherTabs,

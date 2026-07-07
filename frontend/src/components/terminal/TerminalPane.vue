@@ -18,15 +18,69 @@ const sftpStore = useSFTPStore()
 const ctxTabID = ref<string | null>(null)
 const ctxX = ref(0)
 const ctxY = ref(0)
+const draggingTabID = ref<string | null>(null)
+const dragOverTabID = ref<string | null>(null)
+const dragOverPosition = ref<'before' | 'after'>('before')
 
 function getActiveTab(): string | undefined {
   return terminalStore.activeTabID ?? undefined
+}
+
+function getTabDragProps(tab: typeof terminalStore.tabs[number]) {
+  return {
+    draggable: true,
+    class: [
+      'terminal-tab-title',
+      draggingTabID.value === tab.id ? 'terminal-tab-title--dragging' : '',
+      dragOverTabID.value === tab.id && draggingTabID.value !== tab.id ? `terminal-tab-title--over-${dragOverPosition.value}` : '',
+    ],
+    onDragstart: (e: DragEvent) => {
+      draggingTabID.value = tab.id
+      dragOverTabID.value = null
+      dragOverPosition.value = 'before'
+      e.dataTransfer?.setData('text/plain', tab.id)
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move'
+      }
+    },
+    onDragover: (e: DragEvent) => {
+      if (!draggingTabID.value || draggingTabID.value === tab.id) return
+      e.preventDefault()
+      dragOverTabID.value = tab.id
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      dragOverPosition.value = e.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'move'
+      }
+    },
+    onDragleave: () => {
+      if (dragOverTabID.value === tab.id) {
+        dragOverTabID.value = null
+      }
+    },
+    onDrop: (e: DragEvent) => {
+      e.preventDefault()
+      const sourceID = draggingTabID.value || e.dataTransfer?.getData('text/plain')
+      if (sourceID) {
+        terminalStore.moveTab(sourceID, tab.id, dragOverPosition.value)
+      }
+      draggingTabID.value = null
+      dragOverTabID.value = null
+      dragOverPosition.value = 'before'
+    },
+    onDragend: () => {
+      draggingTabID.value = null
+      dragOverTabID.value = null
+      dragOverPosition.value = 'before'
+    },
+  }
 }
 
 function renderTabTitle(tab: typeof terminalStore.tabs[number]) {
   if (tab.type !== 'editor') {
     const dotColor = tab.connected ? 'var(--color-success)' : 'var(--text-secondary)'
     return h('span', {
+      ...getTabDragProps(tab),
       style: 'display:flex;align-items:center;gap:5px',
       onContextmenu: (e: MouseEvent) => onTabContextMenu(e, tab),
     }, [
@@ -51,7 +105,7 @@ function renderTabTitle(tab: typeof terminalStore.tabs[number]) {
   }
 
   return h(NTooltip, { delay: 0, placement: 'bottom' }, {
-    trigger: () => h('span', children),
+    trigger: () => h('span', getTabDragProps(tab), children),
     default: () => tab.tooltip || tab.title,
   })
 }
@@ -273,6 +327,26 @@ function handleContextSelect(action: string) {
   width: 24px;
   height: 24px;
   margin-right: 6px;
+}
+
+.terminal-tab-title {
+  cursor: grab;
+  user-select: none;
+}
+
+.terminal-tab-title--dragging {
+  cursor: grabbing;
+  opacity: 0.55;
+}
+
+.terminal-tab-title--over-before {
+  box-shadow: inset 2px 0 0 var(--color-primary);
+  color: var(--color-primary);
+}
+
+.terminal-tab-title--over-after {
+  box-shadow: inset -2px 0 0 var(--color-primary);
+  color: var(--color-primary);
 }
 </style>
 
