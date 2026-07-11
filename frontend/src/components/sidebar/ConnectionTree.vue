@@ -107,6 +107,10 @@ const moveGroupOptions = computed(() => [
   ...connectionStore.groups.map(group => ({ label: group.name, value: group.id })),
 ])
 const normalizedSearchQuery = computed(() => searchQuery.value.trim().toLowerCase())
+const searchExpandedKeys = computed(() => connectionStore.groups.map(g => g.id))
+const displayedExpandedKeys = computed(() => (
+  normalizedSearchQuery.value ? searchExpandedKeys.value : expandedKeys.value
+))
 const recentConnections = computed(() => connectionStore.connections
   .filter(conn => !!conn.last_used_at)
   .slice()
@@ -195,11 +199,6 @@ const treeData = computed<TreeOption[]>(() => {
     result.push(...ungrouped)
   }
   return result
-})
-
-watch(normalizedSearchQuery, (query) => {
-  if (!query) return
-  expandedKeys.value = connectionStore.groups.map(g => g.id)
 })
 
 function connectionMatchesSearch(conn: Connection, query: string): boolean {
@@ -414,6 +413,11 @@ async function confirmMoveConnection() {
 
 function handleSelect(keys: string[]) {
   void keys
+}
+
+function handleExpandedKeysUpdate(keys: string[]) {
+  if (normalizedSearchQuery.value) return
+  expandedKeys.value = keys
 }
 
 async function handleConnect(connID: string) {
@@ -786,7 +790,7 @@ async function handleDrop({ node, dragNode, dropPosition }: TreeDropInfo) {
       <NTree
         v-if="!loading"
         :data="treeData"
-        :expanded-keys="expandedKeys"
+        :expanded-keys="displayedExpandedKeys"
         :render-label="renderLabel"
         :node-props="nodeProps"
         :indent="14"
@@ -794,7 +798,7 @@ async function handleDrop({ node, dragNode, dropPosition }: TreeDropInfo) {
         block-line
         draggable
         :allow-drop="allowDrop"
-        @update:expanded-keys="(keys: string[]) => expandedKeys = keys"
+        @update:expanded-keys="handleExpandedKeysUpdate"
         @update:selected-keys="handleSelect"
         @drop="handleDrop"
       />

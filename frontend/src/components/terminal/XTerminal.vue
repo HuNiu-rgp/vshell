@@ -4,6 +4,8 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Events } from '@wailsio/runtime'
+import { useMessage } from 'naive-ui'
+import { GetLocalTerminalCwd, OpenInFileManager } from '../../../bindings/vshell/internal/app/appservice'
 import { useTerminalManager } from '../../composables/useTerminalManager'
 import { useTerminalStore } from '../../stores/terminal'
 import { useConnectionStore } from '../../stores/connection'
@@ -19,11 +21,12 @@ const props = defineProps<{
 }>()
 
 const terminalRef = ref<HTMLElement | null>(null)
-const { registerTerminal, unregisterTerminal, isDisconnected, clearDisconnected } = useTerminalManager()
+const { registerTerminal, unregisterTerminal, isDisconnected, clearDisconnected, focusTerminal } = useTerminalManager()
 const terminalStore = useTerminalStore()
 const connectionStore = useConnectionStore()
 const settings = useSettingsStore()
 const { t } = useI18n()
+const message = useMessage()
 
 let reconnecting = false
 
@@ -58,9 +61,54 @@ function handleNativeFileDrop(ev: any) {
   Events.Emit('terminal:stdin', { sessionID: props.sessionID, data: text })
 }
 
+function isLocalTerminalSession(): boolean {
+  const tab = terminalStore.tabs.find((t) => t.id === props.sessionID)
+  return !!tab && tab.type !== 'editor' && !tab.connectionID
+}
+
+async function openCurrentDirectory() {
+  try {
+    const cwd = await GetLocalTerminalCwd(props.sessionID)
+    await OpenInFileManager(cwd)
+  } catch (e: any) {
+    message.error(t('tab.openCurrentDirFailed', { error: e?.message || e }))
+  }
+}
+
 function handleCustomKeyEvent(e: KeyboardEvent): boolean {
   if (e.type !== 'keydown') return true
   if (document.documentElement.hasAttribute('data-shortcut-capturing')) return true
+
+  if (
+    isLocalTerminalSession()
+    && e.metaKey
+    && !e.ctrlKey
+    && !e.altKey
+    && !e.shiftKey
+    && e.code === 'KeyF'
+  ) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!e.repeat) void openCurrentDirectory()
+    return false
+  }
+
+  if (
+    isLocalTerminalSession()
+    && e.altKey
+    && !e.metaKey
+    && !e.ctrlKey
+    && !e.shiftKey
+    && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+  ) {
+    e.preventDefault()
+    e.stopPropagation()
+    Events.Emit('terminal:stdin', {
+      sessionID: props.sessionID,
+      data: e.key === 'ArrowLeft' ? '\x1bb' : '\x1bf',
+    })
+    return false
+  }
 
   if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
     const index = shortcutDigitIndex(e)
@@ -128,6 +176,11 @@ onMounted(() => {
   })
 
   registerTerminal(props.sessionID, term)
+  if (terminalStore.activeTabID === props.sessionID) {
+    requestAnimationFrame(() => {
+      focusTerminal(props.sessionID)
+    })
+  }
   offNativeFileDrop = Events.On('native:file-drop', handleNativeFileDrop)
 
   term.onData((data) => {

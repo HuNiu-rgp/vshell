@@ -490,6 +490,20 @@ func (c *Client) WriteFileContent(remotePath string, content string) error {
 	return nil
 }
 
+func (c *Client) Rename(oldPath, newPath string) error {
+	if err := c.sftpClient.Rename(oldPath, newPath); err != nil {
+		return fmt.Errorf("rename %s to %s: %w", oldPath, newPath, err)
+	}
+	return nil
+}
+
+func (c *Client) Chmod(remotePath string, mode uint32) error {
+	if err := c.sftpClient.Chmod(remotePath, os.FileMode(mode&0777)); err != nil {
+		return fmt.Errorf("chmod %s: %w", remotePath, err)
+	}
+	return nil
+}
+
 func (c *Client) Remove(path string) error {
 	stat, err := c.sftpClient.Stat(path)
 	if err != nil {

@@ -342,6 +342,18 @@ func (a *AppService) StartLocalTerminal() (string, error) {
 	return sessionID, nil
 }
 
+func (a *AppService) StartLocalTerminalInDir(dir string) (string, error) {
+	sessionID := "local-" + uuid.New().String()
+	if err := a.localTerms.StartInDir(sessionID, dir, 24, 80); err != nil {
+		return "", err
+	}
+	return sessionID, nil
+}
+
+func (a *AppService) GetLocalTerminalCwd(sessionID string) (string, error) {
+	return a.localTerms.Cwd(sessionID)
+}
+
 func (a *AppService) ConnectSSH(connectionID string) (string, error) {
 	conn, err := a.getConnectionByID(connectionID)
 	if err != nil {
@@ -804,6 +816,14 @@ func (a *AppService) SFTPReadFileContent(connectionID, remotePath string) (strin
 
 func (a *AppService) SFTPWriteFileContent(connectionID, remotePath, content string) error {
 	return a.sftpManager.WriteFileContent(connectionID, remotePath, content)
+}
+
+func (a *AppService) SFTPRename(connectionID, oldPath, newPath string) error {
+	return a.sftpManager.Rename(connectionID, oldPath, newPath)
+}
+
+func (a *AppService) SFTPChmod(connectionID, remotePath string, mode uint32) error {
+	return a.sftpManager.Chmod(connectionID, remotePath, mode)
 }
 
 func (a *AppService) SFTPDelete(connectionID, remotePath string) error {

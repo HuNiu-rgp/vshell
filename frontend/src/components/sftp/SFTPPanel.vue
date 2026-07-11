@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NTree, NButton, useDialog, useMessage } from 'naive-ui'
-import type { TreeOption } from 'naive-ui'
+import { NTree, NButton, NDropdown, NInput, NModal, NSwitch, useDialog, useMessage } from 'naive-ui'
+import type { DropdownOption, TreeOption } from 'naive-ui'
 import { Events } from '@wailsio/runtime'
 import IconRefreshCw from '~icons/lucide/refresh-cw'
 import IconDownload from '~icons/lucide/download'
@@ -12,13 +12,14 @@ import IconFolder from '~icons/lucide/folder'
 import IconFile from '~icons/lucide/file'
 import IconFolderOpen from '~icons/lucide/folder-open'
 import IconX from '~icons/lucide/x'
+import RemoteFileEditorModal from './RemoteFileEditorModal.vue'
 import { useSFTPStore } from '../../stores/sftp'
 import { useTransferStore } from '../../stores/transfers'
 import { useTerminalStore } from '../../stores/terminal'
 import { useConnectionStore } from '../../stores/connection'
 import type { SFTPFile } from '../../stores/sftp'
 import type { TransferProgress } from '../../stores/transfers'
-import { SFTPUpload, SFTPDownload, SFTPDelete, SFTPReadFileContent, SFTPCancelTransfers, GetHomeDir, ListLocalDir, DeleteLocalFile, ReadLocalFileContent, OpenInFileManager } from '../../../bindings/vshell/internal/app/appservice'
+import { SFTPUpload, SFTPDownload, SFTPDelete, SFTPReadFileContent, SFTPRename, SFTPChmod, SFTPCancelTransfers, GetHomeDir, ListLocalDir, DeleteLocalFile, ReadLocalFileContent, OpenInFileManager } from '../../../bindings/vshell/internal/app/appservice'
 import { useDragSource, useDropTarget } from '../../composables/useDragTransfer'
 import { isEditableFile } from '../../utils/fileType'
 
@@ -44,6 +45,42 @@ const selectedRemote = ref(new Set<string>())
 const remoteSortKey = ref<'name' | 'size' | 'time'>('name')
 const remoteSortAsc = ref(true)
 const remoteDir = ref('')
+const remoteContextVisible = ref(false)
+const remoteContextX = ref(0)
+const remoteContextY = ref(0)
+const contextRemoteFile = ref<SFTPFile | null>(null)
+const showRemoteEditor = ref(false)
+const remoteEditorFile = ref<SFTPFile | null>(null)
+const remoteEditorPath = ref('')
+const remoteEditorContent = ref('')
+const showRenameModal = ref(false)
+const renameFile = ref<SFTPFile | null>(null)
+const renameValue = ref('')
+const renaming = ref(false)
+const showPermissionModal = ref(false)
+const permissionFile = ref<SFTPFile | null>(null)
+const permissionMode = ref(0)
+const savingPermission = ref(false)
+
+const remoteContextOptions = computed<DropdownOption[]>(() => {
+  const file = contextRemoteFile.value
+  if (!file) return []
+  return [
+    { label: t('sftp.download'), key: 'download' },
+    ...(!file.is_dir ? [{ label: t('sftp.edit'), key: 'edit' }] : []),
+    { label: t('sftp.delete'), key: 'delete' },
+    { label: t('sftp.permissions'), key: 'permissions' },
+    { label: t('sftp.rename'), key: 'rename' },
+  ]
+})
+
+const permissionRows = [
+  { label: 'sftp.owner', bits: [0o400, 0o200, 0o100] },
+  { label: 'sftp.group', bits: [0o040, 0o020, 0o010] },
+  { label: 'sftp.others', bits: [0o004, 0o002, 0o001] },
+]
+
+const permissionOctal = computed(() => (permissionMode.value & 0o777).toString(8).padStart(3, '0'))
 
 const sortedRemoteFiles = computed(() => {
   const p = sftpStore.getPanel(props.connectionID)
@@ -142,6 +179,110 @@ function handleTreeSelect(keys: string[]) {
 function remoteFilePath(name: string): string {
   const p = sftpStore.getPanel(props.connectionID)
   return p.currentPath === '/' ? `/${name}` : `${p.currentPath}/${name}`
+}
+
+function openRemoteContextMenu(file: SFTPFile, event: MouseEvent) {
+  event.preventDefault()
+  event.stopPropagation()
+  const path = remoteFilePath(file.name)
+  if (!selectedRemote.value.has(path)) selectedRemote.value = new Set([path])
+  contextRemoteFile.value = file
+  remoteContextVisible.value = false
+  remoteContextX.value = event.clientX
+  remoteContextY.value = event.clientY
+  requestAnimationFrame(() => { remoteContextVisible.value = true })
+}
+
+async function handleRemoteContextSelect(key: string | number) {
+  remoteContextVisible.value = false
+  const file = contextRemoteFile.value
+  if (!file) return
+  switch (key) {
+    case 'download':
+      handleDownload()
+      break
+    case 'edit':
+      await openRemoteEditor(file)
+      break
+    case 'delete':
+      handleDeleteRemote()
+      break
+    case 'permissions':
+      permissionFile.value = file
+      permissionMode.value = file.mode & 0o777
+      showPermissionModal.value = true
+      break
+    case 'rename':
+      renameFile.value = file
+      renameValue.value = file.name
+      showRenameModal.value = true
+      break
+  }
+}
+
+async function openRemoteEditor(file: SFTPFile) {
+  if (!isEditableFile(file.name, file.size)) {
+    message.warning(t('sftp.fileTooLarge', { name: file.name, size: (file.size / 1024 / 1024).toFixed(1) }))
+    return
+  }
+  loadingRemoteFile.value = true
+  try {
+    remoteEditorPath.value = remoteFilePath(file.name)
+    remoteEditorContent.value = await SFTPReadFileContent(props.connectionID, remoteEditorPath.value)
+    remoteEditorFile.value = file
+    showRemoteEditor.value = true
+  } catch (error) {
+    message.error(t('sftp.openFileFailed', { name: file.name, error: error instanceof Error ? error.message : String(error) }))
+  } finally {
+    loadingRemoteFile.value = false
+  }
+}
+
+async function submitRename() {
+  const file = renameFile.value
+  const newName = renameValue.value.trim()
+  if (!file || !newName || newName.includes('/')) {
+    message.warning(t('sftp.invalidName'))
+    return
+  }
+  if (newName === file.name) {
+    showRenameModal.value = false
+    return
+  }
+  renaming.value = true
+  try {
+    const oldPath = remoteFilePath(file.name)
+    const parent = sftpStore.getPanel(props.connectionID).currentPath
+    const newPath = parent === '/' ? `/${newName}` : `${parent}/${newName}`
+    await SFTPRename(props.connectionID, oldPath, newPath)
+    showRenameModal.value = false
+    message.success(t('sftp.renamed'))
+    await refreshRemote()
+  } catch (error) {
+    message.error(t('sftp.renameFailed', { error: error instanceof Error ? error.message : String(error) }))
+  } finally {
+    renaming.value = false
+  }
+}
+
+function setPermission(bit: number, enabled: boolean) {
+  permissionMode.value = enabled ? permissionMode.value | bit : permissionMode.value & ~bit
+}
+
+async function submitPermissions() {
+  const file = permissionFile.value
+  if (!file) return
+  savingPermission.value = true
+  try {
+    await SFTPChmod(props.connectionID, remoteFilePath(file.name), permissionMode.value)
+    showPermissionModal.value = false
+    message.success(t('sftp.permissionsSaved'))
+    await refreshRemote()
+  } catch (error) {
+    message.error(t('sftp.permissionsFailed', { error: error instanceof Error ? error.message : String(error) }))
+  } finally {
+    savingPermission.value = false
+  }
 }
 
 function toggleRemoteSelect(file: SFTPFile, e: MouseEvent) {
@@ -665,6 +806,7 @@ watch(() => sftpStore.treeVersion, rebuildTree, { immediate: true })
                   :class="{ 'dir-row': f.is_dir, selected: selectedRemote.has(remoteFilePath(f.name)) }"
                   @pointerdown="onRemoteRowPointerDown($event, f)"
                   @click="handleRemoteRowClick(f, $event)"
+                  @contextmenu="openRemoteContextMenu(f, $event)"
                 >
                   <td class="py-[3px] px-2 whitespace-nowrap overflow-hidden text-ellipsis max-w-[300px]">
                     <span class="dir-name" @click.stop="handleRemoteNameClick(f, $event)">
@@ -758,6 +900,66 @@ watch(() => sftpStore.treeVersion, rebuildTree, { immediate: true })
         </NButton>
       </div>
     </div>
+
+    <NDropdown
+      placement="bottom-start"
+      trigger="manual"
+      :x="remoteContextX"
+      :y="remoteContextY"
+      :show="remoteContextVisible"
+      :options="remoteContextOptions"
+      @clickoutside="remoteContextVisible = false"
+      @select="handleRemoteContextSelect"
+    />
+
+    <RemoteFileEditorModal
+      v-if="showRemoteEditor && remoteEditorFile"
+      :connectionID="connectionID"
+      :file-name="remoteEditorFile.name"
+      :file-path="remoteEditorPath"
+      :content="remoteEditorContent"
+      @close="showRemoteEditor = false"
+    />
+
+    <NModal v-model:show="showRenameModal" preset="card" :title="t('sftp.rename')" style="width: 380px" :mask-closable="false">
+      <NInput v-model:value="renameValue" autofocus select-on-focus @keydown.enter="submitRename" />
+      <template #footer>
+        <div class="modal-actions">
+          <NButton @click="showRenameModal = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="renaming" @click="submitRename">{{ t('common.save') }}</NButton>
+        </div>
+      </template>
+    </NModal>
+
+    <NModal v-model:show="showPermissionModal" preset="card" :title="t('sftp.editPermissions')" style="width: 460px" :mask-closable="false">
+      <div class="permission-path">{{ permissionFile ? remoteFilePath(permissionFile.name) : '' }}</div>
+      <div class="permission-grid permission-heading">
+        <strong>{{ t('sftp.fileAccess') }}</strong>
+        <strong>{{ t('sftp.read') }}</strong>
+        <strong>{{ t('sftp.write') }}</strong>
+        <strong>{{ t('sftp.execute') }}</strong>
+      </div>
+      <div v-for="row in permissionRows" :key="row.label" class="permission-grid permission-row">
+        <span>{{ t(row.label) }}</span>
+        <NSwitch
+          v-for="bit in row.bits"
+          :key="bit"
+          size="small"
+          :value="(permissionMode & bit) !== 0"
+          @update:value="(enabled: boolean) => setPermission(bit, enabled)"
+        />
+      </div>
+      <div class="permission-octal">
+        <span>{{ t('sftp.numericMode') }}</span>
+        <code>{{ permissionOctal }}</code>
+      </div>
+      <template #footer>
+        <div class="modal-actions">
+          <NButton @click="showPermissionModal = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="savingPermission" @click="submitPermissions">{{ t('common.save') }}</NButton>
+        </div>
+      </template>
+    </NModal>
   </div>
 </template>
 
@@ -854,4 +1056,13 @@ watch(() => sftpStore.treeVersion, rebuildTree, { immediate: true })
   flex-shrink: 0;
   margin-left: 8px;
 }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.permission-path { margin-bottom: 14px; overflow: hidden; color: var(--text-secondary); font-family: monospace; text-overflow: ellipsis; white-space: nowrap; }
+.permission-grid { display: grid; grid-template-columns: minmax(120px, 1fr) repeat(3, 76px); align-items: center; }
+.permission-heading { padding: 8px 0; border-bottom: 1px solid var(--border-color); }
+.permission-heading strong:not(:first-child) { text-align: center; }
+.permission-row { min-height: 44px; border-bottom: 1px solid var(--border-color); }
+.permission-row > :not(:first-child) { justify-self: center; }
+.permission-octal { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; color: var(--text-secondary); }
+.permission-octal code { padding: 3px 8px; color: var(--text-primary); background: var(--bg-tertiary); border-radius: 3px; }
 </style>

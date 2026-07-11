@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { StartLocalTerminal } from '../../bindings/vshell/internal/app/appservice'
+import { StartLocalTerminal, StartLocalTerminalInDir } from '../../bindings/vshell/internal/app/appservice'
 import type { TreeNode } from '../types'
 
 export type TabType = 'terminal' | 'editor'
@@ -58,14 +58,15 @@ export const useTerminalStore = defineStore('terminal', () => {
     })
   }
 
-  async function openLocalTerminal() {
-    const sessionID = await StartLocalTerminal()
+  async function openLocalTerminal(dir?: string): Promise<string> {
+    const sessionID = dir ? await StartLocalTerminalInDir(dir) : await StartLocalTerminal()
     addTab({
       id: sessionID,
       connectionID: '',
       title: 'Local',
       connected: true,
     })
+    return sessionID
   }
 
   function updateTabContent(id: string, content: string) {

@@ -117,6 +117,10 @@ export function GetHomeDir(): $CancellablePromise<string> {
     return $Call.ByID(2930168599);
 }
 
+export function GetLocalTerminalCwd(sessionID: string): $CancellablePromise<string> {
+    return $Call.ByID(3646802752, sessionID);
+}
+
 export function GetPassword(id: string): $CancellablePromise<string> {
     return $Call.ByID(2249946754, id);
 }
@@ -262,6 +266,10 @@ export function SFTPCancelTransfers(): $CancellablePromise<void> {
     return $Call.ByID(2767088298);
 }
 
+export function SFTPChmod(connectionID: string, remotePath: string, mode: number): $CancellablePromise<void> {
+    return $Call.ByID(201072645, connectionID, remotePath, mode);
+}
+
 export function SFTPDelete(connectionID: string, remotePath: string): $CancellablePromise<void> {
     return $Call.ByID(1494492831, connectionID, remotePath);
 }
@@ -278,6 +286,10 @@ export function SFTPReadDir(connectionID: string, path: string): $CancellablePro
 
 export function SFTPReadFileContent(connectionID: string, remotePath: string): $CancellablePromise<string> {
     return $Call.ByID(2657354111, connectionID, remotePath);
+}
+
+export function SFTPRename(connectionID: string, oldPath: string, newPath: string): $CancellablePromise<void> {
+    return $Call.ByID(3943940022, connectionID, oldPath, newPath);
 }
 
 export function SFTPUpload(connectionID: string, localPath: string, remotePath: string): $CancellablePromise<void> {
@@ -312,6 +324,10 @@ export function SetGeoIPDownloadURL(url: string): $CancellablePromise<void> {
 
 export function StartLocalTerminal(): $CancellablePromise<string> {
     return $Call.ByID(2952856122);
+}
+
+export function StartLocalTerminalInDir(dir: string): $CancellablePromise<string> {
+    return $Call.ByID(2317999828, dir);
 }
 
 export function StartMonitor(connectionID: string): $CancellablePromise<void> {

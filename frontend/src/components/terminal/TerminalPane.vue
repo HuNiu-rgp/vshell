@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { ref, h } from 'vue'
+import { ref, h, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NTabs, NTabPane, NEmpty, NTooltip, NDropdown, NButton } from 'naive-ui'
+import { NTabs, NTabPane, NEmpty, NTooltip, NDropdown, NButton, useMessage } from 'naive-ui'
 import type { DropdownOption } from 'naive-ui'
 import IconPlus from '~icons/lucide/plus'
+import { GetLocalTerminalCwd, OpenInFileManager } from '../../../bindings/vshell/internal/app/appservice'
 import { useTerminalStore } from '../../stores/terminal'
 import { useConnectionStore } from '../../stores/connection'
 import { useSFTPStore } from '../../stores/sftp'
 import XTerminal from './XTerminal.vue'
 import EditorTab from './EditorTab.vue'
+import { useTerminalManager } from '../../composables/useTerminalManager'
 
 const { t } = useI18n()
 const terminalStore = useTerminalStore()
 const connectionStore = useConnectionStore()
 const sftpStore = useSFTPStore()
+const { focusTerminal } = useTerminalManager()
+const message = useMessage()
 
 const ctxTabID = ref<string | null>(null)
 const ctxX = ref(0)
@@ -147,7 +151,11 @@ async function handleDisconnectSession(tab: typeof terminalStore.tabs[number]) {
 }
 
 async function handleDuplicate(tab: typeof terminalStore.tabs[number]) {
-  if (tab.type === 'editor' || !tab.connectionID) return
+  if (tab.type === 'editor') return
+  if (!tab.connectionID) {
+    await handleOpenLocalHere(tab)
+    return
+  }
   try {
     const sessionID = await connectionStore.connect(tab.connectionID)
     terminalStore.addTab({
@@ -163,9 +171,45 @@ async function handleDuplicate(tab: typeof terminalStore.tabs[number]) {
 
 async function handleNewTerminal() {
   try {
-    await terminalStore.openLocalTerminal()
+    const sessionID = await terminalStore.openLocalTerminal()
+    focusTerminalAfterRender(sessionID)
   } catch (e: any) {
     // Keep the tab bar action quiet; startup failures are surfaced in the terminal area.
+  }
+}
+
+async function focusTerminalAfterRender(sessionID: string) {
+  await nextTick()
+  requestAnimationFrame(() => {
+    focusTerminal(sessionID)
+  })
+}
+
+function isLocalTerminal(tab: typeof terminalStore.tabs[number]): boolean {
+  return tab.type !== 'editor' && !tab.connectionID
+}
+
+async function getLocalCwd(tab: typeof terminalStore.tabs[number]): Promise<string> {
+  if (!isLocalTerminal(tab)) throw new Error(t('tab.localOnly'))
+  return await GetLocalTerminalCwd(tab.id)
+}
+
+async function handleOpenLocalHere(tab: typeof terminalStore.tabs[number]) {
+  try {
+    const cwd = await getLocalCwd(tab)
+    const sessionID = await terminalStore.openLocalTerminal(cwd)
+    focusTerminalAfterRender(sessionID)
+  } catch (e: any) {
+    message.error(t('tab.openCurrentDirFailed', { error: e?.message || e }))
+  }
+}
+
+async function handleOpenCurrentDir(tab: typeof terminalStore.tabs[number]) {
+  try {
+    const cwd = await getLocalCwd(tab)
+    await OpenInFileManager(cwd)
+  } catch (e: any) {
+    message.error(t('tab.openCurrentDirFailed', { error: e?.message || e }))
   }
 }
 
@@ -211,7 +255,7 @@ function getContextOptions(): DropdownOption[] {
   const tab = terminalStore.tabs.find(t => t.id === ctxTabID.value)
   if (!tab) return []
   const disconnected = !tab.connected
-  return [
+  const options: DropdownOption[] = [
     { label: t('tab.duplicate'), key: 'duplicate' },
     { label: t('tab.reconnect'), key: 'reconnect', disabled: !disconnected },
     { label: t('tab.disconnect'), key: 'disconnect', disabled: disconnected },
@@ -220,6 +264,14 @@ function getContextOptions(): DropdownOption[] {
     { label: t('tab.closeOthers'), key: 'closeOthers' },
     { label: t('tab.closeAll'), key: 'closeAll' },
   ]
+  if (isLocalTerminal(tab)) {
+    options.splice(3, 0,
+      { type: 'divider', key: 'local-dir-divider' },
+      { label: t('tab.openLocalHere'), key: 'openLocalHere', disabled: disconnected },
+      { label: t('tab.openCurrentDir'), key: 'openCurrentDir', disabled: disconnected },
+    )
+  }
+  return options
 }
 
 function handleContextSelect(action: string) {
@@ -234,6 +286,12 @@ function handleContextSelect(action: string) {
       break
     case 'duplicate':
       handleDuplicate(tab)
+      break
+    case 'openLocalHere':
+      handleOpenLocalHere(tab)
+      break
+    case 'openCurrentDir':
+      handleOpenCurrentDir(tab)
       break
     case 'close':
       handleClose(tab.id)

@@ -5,7 +5,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,8 +39,25 @@ func NewManager(onEvent func(string, any)) *Manager {
 }
 
 func (m *Manager) Start(sessionID string, rows, cols uint16) error {
+	return m.StartInDir(sessionID, "", rows, cols)
+}
+
+func (m *Manager) StartInDir(sessionID string, dir string, rows, cols uint16) error {
 	cmd := localShellCommand()
-	if home, err := os.UserHomeDir(); err == nil && home != "" {
+	if dir != "" {
+		absDir, err := filepath.Abs(dir)
+		if err != nil {
+			return fmt.Errorf("resolve local shell directory: %w", err)
+		}
+		info, err := os.Stat(absDir)
+		if err != nil {
+			return fmt.Errorf("stat local shell directory: %w", err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("local shell path is not a directory: %s", absDir)
+		}
+		cmd.Dir = absDir
+	} else if home, err := os.UserHomeDir(); err == nil && home != "" {
 		cmd.Dir = home
 	}
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
@@ -82,6 +102,19 @@ func (m *Manager) Start(sessionID string, rows, cols uint16) error {
 	}()
 
 	return nil
+}
+
+func (m *Manager) Cwd(sessionID string) (string, error) {
+	m.mu.RLock()
+	session, ok := m.sessions[sessionID]
+	m.mu.RUnlock()
+	if !ok {
+		return "", fmt.Errorf("local terminal session not found")
+	}
+	if session.cmd == nil || session.cmd.Process == nil {
+		return "", fmt.Errorf("local terminal process not available")
+	}
+	return processCwd(session.cmd.Process.Pid)
 }
 
 func (m *Manager) WriteStdin(sessionID string, data []byte) bool {
@@ -155,6 +188,29 @@ func localShellCommand() *exec.Cmd {
 		}
 	}
 	return exec.Command(shell, "-l")
+}
+
+func processCwd(pid int) (string, error) {
+	switch runtime.GOOS {
+	case "linux":
+		return os.Readlink(fmt.Sprintf("/proc/%d/cwd", pid))
+	case "darwin":
+		out, err := exec.Command("lsof", "-a", "-p", strconv.Itoa(pid), "-d", "cwd", "-Fn").Output()
+		if err != nil {
+			return "", fmt.Errorf("read process cwd: %w", err)
+		}
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.HasPrefix(line, "n") && len(line) > 1 {
+				return line[1:], nil
+			}
+		}
+		return "", fmt.Errorf("process cwd not found")
+	default:
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			return home, nil
+		}
+		return "", fmt.Errorf("current directory lookup is not supported on %s", runtime.GOOS)
+	}
 }
 
 type flushingWriter struct {

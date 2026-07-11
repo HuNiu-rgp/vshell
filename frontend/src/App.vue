@@ -109,8 +109,16 @@ function focusActiveTerminal() {
   focusTerminal(id)
 }
 
+async function focusTerminalAfterRender(sessionID: string) {
+  await nextTick()
+  requestAnimationFrame(() => {
+    focusTerminal(sessionID)
+  })
+}
+
 async function openNewLocalWindow() {
-  await terminalStore.openLocalTerminal()
+  const sessionID = await terminalStore.openLocalTerminal()
+  await focusTerminalAfterRender(sessionID)
 }
 
 function shouldSkipGlobalTabShortcut(e: KeyboardEvent): boolean {
@@ -272,7 +280,8 @@ onMounted(async () => {
 
   if (terminalStore.tabs.length === 0) {
     try {
-      await terminalStore.openLocalTerminal()
+      const sessionID = await terminalStore.openLocalTerminal()
+      await focusTerminalAfterRender(sessionID)
     } catch (e) {
       console.error('Failed to start local terminal:', e)
     }

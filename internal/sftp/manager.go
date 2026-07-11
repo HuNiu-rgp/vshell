@@ -183,6 +183,22 @@ func (m *Manager) WriteFileContent(connectionID, remotePath, content string) err
 	return client.WriteFileContent(remotePath, content)
 }
 
+func (m *Manager) Rename(connectionID, oldPath, newPath string) error {
+	client, err := m.GetOrCreateClient(connectionID)
+	if err != nil {
+		return err
+	}
+	return client.Rename(oldPath, newPath)
+}
+
+func (m *Manager) Chmod(connectionID, remotePath string, mode uint32) error {
+	client, err := m.GetOrCreateClient(connectionID)
+	if err != nil {
+		return err
+	}
+	return client.Chmod(remotePath, mode)
+}
+
 func (m *Manager) CloseClient(connectionID string) {
 	m.mu.Lock()
 	c, ok := m.clients[connectionID]
